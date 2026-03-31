@@ -2,13 +2,14 @@
 import { Provider } from 'react-redux'
 import './App.css'
 import { store } from './app/store'
+import Home from './pages/Home'
 
 function App() {
 
   return (
      <Provider store={store}>
 
-      <h1 className="text-3xl font-bold ">Chatbox App</h1>
+       <Home />
      
     </Provider>
   )
