@@ -1,6 +1,7 @@
 import axios from 'axios';
 
-const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
+const GEMINI_API_URL =
+  'https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent';
 
 export interface ChatMessage {
   role: 'user' | 'assistant';
@@ -12,58 +13,85 @@ export interface ChatAPIRequest {
   messages: ChatMessage[];
 }
 
+// (Gemini response is different, so we don't strictly use this type)
 export interface ChatAPIResponse {
-  id: string;
-  object: string;
-  created: number;
-  model: string;
-  choices: Array<{
-    index: number;
-    message: ChatMessage;
-    finish_reason: string;
+  candidates: Array<{
+    content: {
+      parts: Array<{
+        text: string;
+      }>;
+    };
   }>;
-  usage: {
-    prompt_tokens: number;
-    completion_tokens: number;
-    total_tokens: number;
-  };
 }
 
-export const sendMessageToAPI = async (messages: ChatMessage[]): Promise<string> => {
-  const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
+export const sendMessageToAPI = async (
+  messages: ChatMessage[]
+): Promise<string> => {
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY; // keeping same env name as your code
 
   if (!apiKey || apiKey === 'YOUR_API_KEY_HERE') {
-    throw new Error('Please set your OpenAI API key in the .env file');
+    throw new Error('Please set your API key in the .env file');
   }
 
   try {
     const response = await axios.post<ChatAPIResponse>(
-      OPENAI_API_URL,
+      `${GEMINI_API_URL}?key=${apiKey}`,
       {
-        model: 'gpt-3.5-turbo',
-        messages: messages,
+        contents: messages.map((msg) => ({
+          role: msg.role === 'user' ? 'user' : 'model',
+          parts: [{ text: msg.content }],
+        })),
       },
       {
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
         },
       }
     );
 
-    return response.data.choices[0].message.content;
+    return response.data.candidates[0].content.parts[0].text;
   } catch (error) {
     if (axios.isAxiosError(error)) {
       if (error.response?.status === 401) {
-        throw new Error('Invalid API key. Please check your OpenAI API key.');
+        throw new Error('Invalid API key. Please check your API key.');
+      } else if (error.response?.status === 403) {
+        throw new Error('Access denied. Check API permissions.');
+      } else if (error.response?.status === 404) {
+        throw new Error('Model not found. Please check model name.');
       } else if (error.response?.status === 429) {
         throw new Error('Rate limit exceeded. Please try again later.');
       } else if (error.response) {
-        throw new Error(`API Error: ${error.response.data?.error?.message || 'Unknown error'}`);
+        throw new Error(
+          `API Error: ${
+            error.response.data?.error?.message || 'Unknown error'
+          }`
+        );
       } else if (error.request) {
-        throw new Error('Network error. Please check your internet connection.');
+        throw new Error(
+          'Network error. Please check your internet connection.'
+        );
       }
     }
     throw new Error('Failed to send message. Please try again.');
   }
 };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
