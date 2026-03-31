@@ -1,15 +1,16 @@
 
+import { Provider } from 'react-redux'
 import './App.css'
+import { store } from './app/store'
 
 function App() {
 
   return (
-    <>
+     <Provider store={store}>
 
       <h1 className="text-3xl font-bold ">Chatbox App</h1>
-      <p>Welcome to the Chatbox App! This is a simple application where you can chat with your friends and family. You can create chat rooms, send messages, and share media files. Enjoy chatting!</p>
-
-    </>
+     
+    </Provider>
   )
 }
 
