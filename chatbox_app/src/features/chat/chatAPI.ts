@@ -1,19 +1,37 @@
 import axios from 'axios';
 
 const GEMINI_API_URL =
-  'https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent';
+  'https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent'; // ← fixed model name
 
 export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
 }
 
-export interface ChatAPIRequest {
-  model: string;
-  messages: ChatMessage[];
+export interface Attachment {
+  file: File;
+  base64: string;
+  preview: string;
 }
 
-// (Gemini response is different, so we don't strictly use this type)
+interface TextPart {
+  text: string;
+}
+
+interface InlineDataPart {
+  inline_data: {
+    mime_type: string;
+    data: string;
+  };
+}
+
+type GeminiPart = TextPart | InlineDataPart;
+
+export interface SendMessagePayload {
+  content: string;
+  attachments?: Attachment[]; // ← plural, remove old 'attachment'
+}
+
 export interface ChatAPIResponse {
   candidates: Array<{
     content: {
@@ -25,22 +43,42 @@ export interface ChatAPIResponse {
 }
 
 export const sendMessageToAPI = async (
-  messages: ChatMessage[]
+  messages: ChatMessage[],
+  payload: SendMessagePayload
 ): Promise<string> => {
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY; // keeping same env name as your code
-
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
   if (!apiKey || apiKey === 'YOUR_API_KEY_HERE') {
     throw new Error('Please set your API key in the .env file');
   }
 
   try {
+    // Build parts: text first, then all images
+ const parts: GeminiPart[] = [{ text: payload.content }];
+
+if (payload.attachments && payload.attachments.length > 0) {
+  payload.attachments.forEach((attachment) => {
+    parts.push({
+      inline_data: {
+        mime_type: attachment.file.type || 'image/jpeg',
+        data: attachment.base64,
+      },
+    });
+  });
+}
+
     const response = await axios.post<ChatAPIResponse>(
       `${GEMINI_API_URL}?key=${apiKey}`,
       {
-        contents: messages.map((msg) => ({
-          role: msg.role === 'user' ? 'user' : 'model',
-          parts: [{ text: msg.content }],
-        })),
+        contents: [
+          ...messages.map((msg) => ({
+            role: msg.role === 'user' ? 'user' : 'model',
+            parts: [{ text: msg.content }],
+          })),
+          {
+            role: 'user',
+            parts: parts, // ← includes all images
+          },
+        ],
       },
       {
         headers: {
@@ -62,23 +100,15 @@ export const sendMessageToAPI = async (
         throw new Error('Rate limit exceeded. Please try again later.');
       } else if (error.response) {
         throw new Error(
-          `API Error: ${
-            error.response.data?.error?.message || 'Unknown error'
-          }`
+          `API Error: ${error.response.data?.error?.message || 'Unknown error'}`
         );
       } else if (error.request) {
-        throw new Error(
-          'Network error. Please check your internet connection.'
-        );
+        throw new Error('Network error. Please check your internet connection.');
       }
     }
     throw new Error('Failed to send message. Please try again.');
   }
 };
-
-
-
-
 
 
 
